@@ -1,6 +1,11 @@
 function normalizePrice(text) {
     if (!text) return null;
-    let cleanText = text.toLowerCase().replace(/\s/g, "").replace(/da/g, "").replace(/dzd/g, "");
+    const lower = text.toLowerCase();
+    // Strict Algeria Rule: Reject foreign currencies
+    if (lower.includes('€') || lower.includes('eur') || lower.includes('$') || lower.includes('usd') || lower.includes('euro')) {
+        return null;
+    }
+    let cleanText = lower.replace(/\s/g, "").replace(/da/g, "").replace(/dzd/g, "");
 
     // Handle "6m" -> 6 million centimes -> 60,000 DA
     // Wait, typical Algerian "millions" usually means centimes. 

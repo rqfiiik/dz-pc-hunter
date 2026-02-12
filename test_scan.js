@@ -1,7 +1,7 @@
 const http = require('http');
 
 const data = JSON.stringify({
-    model: 'iphone 13'
+    model: 'laptop'
 });
 
 const options = {

@@ -1,0 +1,7 @@
+selenium
+undetected-chromedriver
+pandas
+requests
+beautifulsoup4
+schedule
+colorama

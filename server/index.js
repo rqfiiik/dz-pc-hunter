@@ -3,7 +3,8 @@ const cors = require('cors');
 const { initDb, db } = require('./database');
 const { scrapeOuedkniss } = require('./scraper');
 const { scrapeFacebook } = require('./facebookScraper');
-const { scrapeGoogle } = require('./googleScraper');
+const { scrapeKouba } = require('./retailers/koubaScraper');
+const { scrapeDigitec } = require('./retailers/digitecScraper');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -25,8 +26,9 @@ app.post('/scan', async (req, res) => {
         // 1. Check if we have recent cached data (optional optimization)
 
         // 2. Scrape (Parallel)
+        // 2. Scrape (Parallel)
         console.log('Starting parallel scrape...');
-        const [ouedknissResults, facebookResults] = await Promise.all([
+        const [ouedknissResults, facebookResults, koubaResults, digitecResults] = await Promise.all([
             scrapeOuedkniss(model).catch(e => {
                 console.error('Ouedkniss scrape failed completely:', e);
                 return [];
@@ -34,19 +36,29 @@ app.post('/scan', async (req, res) => {
             scrapeFacebook(model).catch(e => {
                 console.error('Facebook scrape failed completely:', e);
                 return [];
+            }),
+            scrapeKouba(model).catch(e => {
+                console.error('Kouba scrape failed completely:', e);
+                return [];
+            }),
+            scrapeDigitec(model).catch(e => {
+                console.error('Digitec scrape failed completely:', e);
+                return [];
             })
         ]);
 
         console.log('Type of ouedknissResults:', typeof ouedknissResults, Array.isArray(ouedknissResults));
         console.log('Type of facebookResults:', typeof facebookResults, Array.isArray(facebookResults));
-        console.log('Type of googleResults:', typeof googleResults, Array.isArray(googleResults));
+        console.log('Type of koubaResults:', typeof koubaResults, Array.isArray(koubaResults));
+        console.log('Type of digitecResults:', typeof digitecResults, Array.isArray(digitecResults));
 
         const listings = [
             ...(ouedknissResults || []),
             ...(facebookResults || []),
-            ...(googleResults || [])
+            ...(koubaResults || []),
+            ...(digitecResults || [])
         ];
-        console.log(`Total listings found: ${listings.length} (OK_Direct: ${(ouedknissResults || []).length}, Google: ${(googleResults || []).length}, FB: ${(facebookResults || []).length})`);
+        console.log(`Total: ${listings.length} (OK: ${(ouedknissResults || []).length}, FB: ${(facebookResults || []).length}, Kouba: ${(koubaResults || []).length}, Digitec: ${(digitecResults || []).length})`);
 
         if (listings.length === 0) {
             return res.json({ model, avg: 0, min: 0, max: 0, deals: [] });
