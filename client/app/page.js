@@ -1,146 +1,162 @@
 "use client";
+
 import { useState } from 'react';
 import axios from 'axios';
-import { Search, Monitor, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { AlertCircle, Filter, ArrowUpDown } from 'lucide-react';
+import { HeroSearch } from '../components/HeroSearch';
+import { StatsTicker } from '../components/StatsTicker';
+import { DealCard } from '../components/DealCard';
 
 export default function Home() {
-    const [model, setModel] = useState('');
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState(null);
     const [error, setError] = useState(null);
+    const [sortBy, setSortBy] = useState('score'); // 'score' | 'price_asc' | 'price_desc'
 
-    const handleScan = async (e) => {
-        e.preventDefault();
-        if (!model) return;
-
+    const handleScan = async (model) => {
         setLoading(true);
         setError(null);
         setData(null);
 
+        // Artificial delay for UX (to show loading state if backend is too fast)
+        // await new Promise(r => setTimeout(r, 800)); 
+
         try {
-            // Assuming backend runs on port 5000
             const response = await axios.post('http://localhost:5000/scan', { model });
             setData(response.data);
         } catch (err) {
             console.error(err);
-            setError('Failed to fetch deals. Ensure backend is running.');
+            setError('Failed to fetch deals. The scraper might be blocked or the server is down.');
         } finally {
             setLoading(false);
         }
     };
 
-    const getScoreBadge = (score) => {
-        switch (score) {
-            case 'great': return <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-bold border border-green-200">GREAT DEAL</span>;
-            case 'good': return <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-bold border border-yellow-200">GOOD PRICE</span>;
-            case 'bad': return <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-bold border border-red-200">BAD PRICE</span>;
-            default: return null;
-        }
-    };
+    const sortedDeals = data?.deals ? [...data.deals].sort((a, b) => {
+        if (sortBy === 'price_asc') return (a.price || 0) - (b.price || 0);
+        if (sortBy === 'price_desc') return (b.price || 0) - (a.price || 0);
+        // Default: Score (Badges are strings, so we map them to values)
+        const scoreVal = { great: 3, good: 2, bad: 1 };
+        return (scoreVal[b.score] || 0) - (scoreVal[a.score] || 0);
+    }) : [];
 
     return (
-        <main className="min-h-screen bg-gray-50 p-8">
-            <div className="max-w-5xl mx-auto space-y-8">
+        <main className="min-h-screen bg-gray-50 flex flex-col">
+            {/* Hero Section */}
+            <section className={`transition-all duration-700 ease-in-out flex flex-col items-center justify-center p-6 ${data ? 'py-12 min-h-[40vh]' : 'min-h-[80vh]'}`}>
+                <motion.div
+                    layout
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6 }}
+                    className="text-center space-y-4 max-w-3xl mx-auto mb-10"
+                >
+                    <h1 className="text-5xl md:text-6xl font-extrabold text-carbon tracking-tight">
+                        Is this PC <span className="text-primary">overpriced?</span>
+                    </h1>
+                    <p className="text-xl text-slate-500 font-medium">
+                        Instantly scan the Algerian market. Spot the scams. Find the steals.
+                    </p>
+                </motion.div>
 
-                {/* Header */}
-                <div className="text-center space-y-2">
-                    <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">🇩🇿 DZ PC Hunter</h1>
-                    <p className="text-lg text-gray-600">Algerian PC Deal Intelligence Platform</p>
-                </div>
+                <HeroSearch onSearch={handleScan} isLoading={loading} />
 
-                {/* Search Input */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <form onSubmit={handleScan} className="flex gap-2">
-                        <div className="relative flex-1">
-                            <Search className="absolute left-3 top-3 text-gray-400" size={20} />
-                            <input
-                                type="text"
-                                placeholder="Enter PC Model (e.g. Lenovo ThinkBook G15 Ryzen 5 5500U)"
-                                className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                                value={model}
-                                onChange={(e) => setModel(e.target.value)}
-                            />
-                        </div>
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                {/* Loading State Overlay */}
+                <AnimatePresence>
+                    {loading && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="mt-8 text-primary font-medium flex flex-col items-center gap-2"
                         >
-                            {loading ? 'Scanning...' : 'Hunt Deals'}
-                        </button>
-                    </form>
-                </div>
+                            <p className="animate-pulse">Searching Ouedkniss...</p>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
                 {/* Error State */}
-                {error && (
-                    <div className="bg-red-50 text-red-700 p-4 rounded-xl border border-red-100 flex items-center gap-2">
-                        <AlertCircle size={20} />
-                        {error}
-                    </div>
-                )}
+                <AnimatePresence>
+                    {error && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            className="mt-8 p-4 bg-error-bg text-error-text rounded-xl border border-error/20 flex items-center gap-3 shadow-sm max-w-md"
+                        >
+                            <AlertCircle size={24} />
+                            <p className="font-medium">{error}</p>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </section>
 
-                {/* Results */}
+            {/* Results Section */}
+            <AnimatePresence>
                 {data && (
-                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <motion.section
+                        initial={{ opacity: 0, y: 40 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 20 }}
+                        transition={{ duration: 0.5, ease: "easeOut" }}
+                        className="flex-1 bg-white rounded-t-[40px] shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] p-8 md:p-12"
+                    >
+                        <div className="max-w-7xl mx-auto">
+                            {/* Header Info */}
+                            <div className="flex flex-col md:flex-row justify-between items-end mb-8 gap-4">
+                                <div>
+                                    <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1">Analysis Report</p>
+                                    <h2 className="text-3xl font-bold text-carbon">{data.model}</h2>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-sm font-medium text-slate-500">Sort by:</span>
+                                    <select
+                                        value={sortBy}
+                                        onChange={(e) => setSortBy(e.target.value)}
+                                        className="bg-gray-100 border-none text-sm font-semibold text-carbon rounded-lg py-2 pl-3 pr-8 focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                                    >
+                                        <option value="score">Best Value</option>
+                                        <option value="price_asc">Lowest Price</option>
+                                        <option value="price_desc">Highest Price</option>
+                                    </select>
+                                </div>
+                            </div>
 
-                        {/* Stats Cards */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 text-center">
-                                <p className="text-sm text-gray-500 uppercase tracking-wider font-semibold">Average Price</p>
-                                <p className="text-3xl font-bold text-gray-900 mt-2">{data.avg?.toLocaleString()} DA</p>
-                            </div>
-                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 text-center">
-                                <p className="text-sm text-gray-500 uppercase tracking-wider font-semibold">Lowest Price</p>
-                                <p className="text-3xl font-bold text-green-600 mt-2">{data.min?.toLocaleString()} DA</p>
-                            </div>
-                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 text-center">
-                                <p className="text-sm text-gray-500 uppercase tracking-wider font-semibold">Highest Price</p>
-                                <p className="text-3xl font-bold text-red-600 mt-2">{data.max?.toLocaleString()} DA</p>
-                            </div>
-                        </div>
+                            <StatsTicker
+                                avg={data.avg}
+                                min={data.min}
+                                max={data.max}
+                                count={data.deals?.length}
+                            />
 
-                        {/* Deals Table */}
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-                                <h3 className="font-semibold text-gray-900">Found {data.deals.length} Listings</h3>
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left text-sm text-gray-600">
-                                    <thead className="bg-gray-50 text-gray-900 font-semibold border-b border-gray-100">
-                                        <tr>
-                                            <th className="px-6 py-4">Title</th>
-                                            <th className="px-6 py-4">Price</th>
-                                            <th className="px-6 py-4">Score</th>
-                                            <th className="px-6 py-4">Source</th>
-                                            <th className="px-6 py-4">Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100">
-                                        {data.deals.map((deal, idx) => (
-                                            <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
-                                                <td className="px-6 py-4 max-w-xs truncate font-medium text-gray-900" title={deal.title}>{deal.title}</td>
-                                                <td className="px-6 py-4 font-mono">{deal.price?.toLocaleString()} DA</td>
-                                                <td className="px-6 py-4">{getScoreBadge(deal.score)}</td>
-                                                <td className="px-6 py-4 capitalize">{deal.source}</td>
-                                                <td className="px-6 py-4">
-                                                    <a
-                                                        href={deal.link}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="text-blue-600 hover:text-blue-700 font-medium hover:underline flex items-center gap-1"
-                                                    >
-                                                        View <Monitor size={14} />
-                                                    </a>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                            {/* Empty State or Grid */}
+                            {sortedDeals.length === 0 ? (
+                                <div className="text-center py-20 bg-gray-50 rounded-3xl border border-dashed border-gray-200">
+                                    <div className="inline-flex p-4 bg-white rounded-full shadow-sm mb-4 text-slate-300">
+                                        <Search size={48} />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-slate-700">No listings found</h3>
+                                    <p className="text-slate-500 mt-2">Try searching for a shorter model name (e.g. "ThinkPad" instead of "Lenovo ThinkPad X1 Carbon Gen 9")</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                    {sortedDeals.map((deal, idx) => (
+                                        <motion.div
+                                            key={idx}
+                                            initial={{ opacity: 0, scale: 0.95 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            transition={{ delay: idx * 0.05 }}
+                                        >
+                                            <DealCard {...deal} />
+                                        </motion.div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
-                    </div>
+                    </motion.section>
                 )}
-            </div>
+            </AnimatePresence>
         </main>
     );
 }
