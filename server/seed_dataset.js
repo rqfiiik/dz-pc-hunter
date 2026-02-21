@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const prisma = new PrismaClient();
-const DATA_PATH = path.join(__dirname, '..', 'pc-part-dataset-main', 'data', 'json');
+const DATA_PATH = 'C:/Users/WelCome/.gemini/antigravity/scratch/pc-part-dataset-main/data/json';
 
 async function seedDatabase() {
     console.log("Starting PC Part Database Seeding...");

@@ -171,8 +171,40 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // ----------------------------------------------------
-// SMART SEARCH API (Protected & Subscribed Only)
+// SMART SEARCH & AUTOCOMPLETE API (Protected)
 // ----------------------------------------------------
+app.get('/api/autocomplete', authenticateToken, async (req, res) => {
+    try {
+        if (!req.user.isSubscribed && req.user.role !== 'admin') return res.json([]);
+
+        const { q } = req.query;
+        if (!q || q.length < 2) return res.json([]);
+
+        const units = await prisma.intelligenceUnit.findMany({
+            where: {
+                status: 'APPROVED',
+                OR: [
+                    { cpu: { contains: q } },
+                    { gpu: { contains: q } }
+                ]
+            },
+            take: 20,
+            select: { cpu: true, gpu: true }
+        });
+
+        const suggestions = new Set();
+        units.forEach(u => {
+            if (u.cpu && u.cpu.toLowerCase().includes(q.toLowerCase())) suggestions.add(u.cpu);
+            if (u.gpu && u.gpu.toLowerCase().includes(q.toLowerCase())) suggestions.add(u.gpu);
+        });
+
+        res.json(Array.from(suggestions).slice(0, 5));
+    } catch (error) {
+        console.error('Autocomplete Error:', error.message);
+        res.status(500).json({ error: 'Autocomplete failed' });
+    }
+});
+
 app.get('/api/search', authenticateToken, async (req, res) => {
     try {
         // Enforce Subscription Rule (Admins bypass)
