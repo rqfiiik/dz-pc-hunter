@@ -1,0 +1,48 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model IntelligenceUnit {
+  id              String         @id @default(uuid())
+  category        String         // Laptop, Desktop, Phone, Accessory
+  cpu             String?
+  gpu             String?
+  ram             String?
+  storage         String?
+  condition       String         // New, Used
+  minPrice        Int
+  avgPrice        Int
+  maxPrice        Int
+  dealThreshold   Int
+  confidenceScore Int            // e.g., 0-100 based on # of listings
+  status          String         @default("PENDING") // PENDING, APPROVED, REJECTED
+  proofUrl        String?        // Link to cloud storage showing proof of prices
+  lastUpdated     DateTime       @default(now())
+  productLinks    ProductLink[]
+
+  @@unique([category, cpu, gpu, ram, storage, condition])
+}
+
+model ProductLink {
+  id                 String           @id @default(uuid())
+  url                String
+  price              Int?
+  intelligenceUnitId String
+  intelligenceUnit   IntelligenceUnit @relation(fields: [intelligenceUnitId], references: [id], onDelete: Cascade)
+  createdAt          DateTime         @default(now())
+}
+
+model User {
+  id                 String    @id @default(uuid())
+  email              String    @unique
+  password           String
+  role               String    @default("subscriber") // "admin", "worker", "subscriber"
+  isSubscribed       Boolean   @default(false)
+  subscriptionExpiry DateTime? // Timestamp when subscription ends
+  createdAt          DateTime  @default(now())
+}
