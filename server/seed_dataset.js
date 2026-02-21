@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const fs = require('fs');
 const path = require('path');
+const xlsx = require('xlsx');
 
 const prisma = new PrismaClient();
 const DATA_PATH = 'C:/Users/WelCome/.gemini/antigravity/scratch/pc-part-dataset-main/data/json';
@@ -9,6 +10,7 @@ async function seedDatabase() {
     console.log("Starting PC Part Database Seeding...");
 
     try {
+        // 1. Seed CPUs
         const cpuDataPath = path.join(DATA_PATH, 'cpu.json');
         if (fs.existsSync(cpuDataPath)) {
             const rawCPUs = JSON.parse(fs.readFileSync(cpuDataPath, 'utf8'));
@@ -39,6 +41,7 @@ async function seedDatabase() {
             console.log(`Successfully seeded ${cpuCount} CPUs.`);
         }
 
+        // 2. Seed GPUs
         const gpuDataPath = path.join(DATA_PATH, 'video-card.json');
         if (fs.existsSync(gpuDataPath)) {
             const rawGPUs = JSON.parse(fs.readFileSync(gpuDataPath, 'utf8'));
@@ -64,6 +67,76 @@ async function seedDatabase() {
                 gpuCount++;
             }
             console.log(`Successfully seeded ${gpuCount} Video Cards.`);
+        }
+
+        // 3. Seed Laptops from Excel
+        console.log("Reading Teoalida Excel Dataset...");
+        const excelPath = 'C:/Users/WelCome/Downloads/Laptop-Computers-Database-by-Teoalida-SAMPLE.xlsx';
+        if (fs.existsSync(excelPath)) {
+            const wb = xlsx.readFile(excelPath);
+            const sheet = wb.Sheets[wb.SheetNames[0]];
+            const allRows = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+
+            const headers = allRows[2];
+            const dataRows = allRows.slice(7);
+
+            let addedCount = 0;
+            let skippedCount = 0;
+
+            for (const row of dataRows) {
+                const getCol = (name) => {
+                    const index = headers.indexOf(name);
+                    return index !== -1 ? row[index] : null;
+                };
+
+                const title = getCol('Naming') || getCol('Design > Model name');
+                const cpuRaw = getCol('Main specs > Processor') || getCol('Processor > Processor model');
+                const gpuRaw = getCol('Main specs > Graphics') || getCol('Graphics > Discrete graphics adapter model') || getCol('Graphics > On-board graphics adapter model');
+                const ramRaw = getCol('Main specs > Internal memory');
+                const storageRaw = getCol('Main specs > Storage');
+                const priceRaw = getCol('Design > Price');
+
+                if (!cpuRaw || !ramRaw) {
+                    skippedCount++;
+                    continue;
+                }
+
+                const cpu = String(cpuRaw).trim();
+                const gpu = gpuRaw ? String(gpuRaw).replace('Not available', '').trim() : '';
+                const ram = String(ramRaw).replace('Not available', '').trim();
+                const storage = storageRaw ? String(storageRaw).replace('Not available', '').trim() : '';
+
+                try {
+                    await prisma.intelligenceUnit.create({
+                        data: {
+                            category: 'Laptop',
+                            condition: 'Used',
+                            cpu: cpu,
+                            gpu: gpu,
+                            ram: ram,
+                            storage: storage,
+                            minPrice: 0,
+                            avgPrice: 0,
+                            maxPrice: 0,
+                            dealThreshold: 0,
+                            confidenceScore: 1,
+                            status: 'APPROVED',
+                            metadata: JSON.stringify({
+                                source: 'Teoalida Dataset',
+                                originalTitle: title,
+                                originalPrice: priceRaw
+                            })
+                        }
+                    });
+                    addedCount++;
+                } catch (error) {
+                    // Skip duplicates
+                    skippedCount++;
+                }
+            }
+            console.log(`Successfully seeded ${addedCount} Laptops from Excel.`);
+        } else {
+            console.log("Teoalida Excel file not found in Downloads.");
         }
 
     } catch (error) {

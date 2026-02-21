@@ -185,17 +185,28 @@ app.get('/api/autocomplete', authenticateToken, async (req, res) => {
                 status: 'APPROVED',
                 OR: [
                     { cpu: { contains: q } },
-                    { gpu: { contains: q } }
+                    { gpu: { contains: q } },
+                    { metadata: { contains: q } }
                 ]
             },
             take: 20,
-            select: { cpu: true, gpu: true }
+            select: { cpu: true, gpu: true, metadata: true }
         });
 
         const suggestions = new Set();
         units.forEach(u => {
             if (u.cpu && u.cpu.toLowerCase().includes(q.toLowerCase())) suggestions.add(u.cpu);
             if (u.gpu && u.gpu.toLowerCase().includes(q.toLowerCase())) suggestions.add(u.gpu);
+            if (u.metadata) {
+                try {
+                    const metaObj = typeof u.metadata === 'string' ? JSON.parse(u.metadata) : u.metadata;
+                    if (metaObj.originalTitle && metaObj.originalTitle.toLowerCase().includes(q.toLowerCase())) {
+                        suggestions.add(metaObj.originalTitle);
+                    }
+                } catch (e) {
+                    // silently ignore parse errors
+                }
+            }
         });
 
         res.json(Array.from(suggestions).slice(0, 5));
