@@ -447,6 +447,82 @@ app.post('/api/product-links', async (req, res) => {
 });
 
 // ----------------------------------------------------
+// PORTFOLIO API (Active Flips & Inventory)
+// ----------------------------------------------------
+app.get('/api/portfolio', authenticateToken, async (req, res) => {
+    try {
+        const assets = await prisma.flipAsset.findMany({
+            where: { userId: req.user.id },
+            orderBy: { updatedAt: 'desc' }
+        });
+        res.json(assets);
+    } catch (error) {
+        console.error("Fetch Portfolio Error:", error);
+        res.status(500).json({ error: 'Failed to fetch portfolio', details: error.message });
+    }
+});
+
+app.post('/api/portfolio', authenticateToken, async (req, res) => {
+    try {
+        const data = req.body;
+
+        // Ensure data belongs to the logged-in user
+        const newAsset = await prisma.flipAsset.create({
+            data: {
+                ...data,
+                userId: req.user.id
+            }
+        });
+
+        res.status(201).json(newAsset);
+    } catch (error) {
+        console.error("Create Flip Asset Error:", error);
+        res.status(500).json({ error: 'Failed to create flip asset', details: error.message });
+    }
+});
+
+app.put('/api/portfolio/:id', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const data = req.body;
+
+        // Ensure the asset belongs to the user before updating
+        const existing = await prisma.flipAsset.findUnique({ where: { id } });
+        if (!existing || existing.userId !== req.user.id) {
+            return res.status(403).json({ error: 'Unauthorized' });
+        }
+
+        const updatedAsset = await prisma.flipAsset.update({
+            where: { id },
+            data
+        });
+
+        res.json(updatedAsset);
+    } catch (error) {
+        console.error("Update Flip Asset Error:", error);
+        res.status(500).json({ error: 'Failed to update flip asset', details: error.message });
+    }
+});
+
+app.delete('/api/portfolio/:id', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const existing = await prisma.flipAsset.findUnique({ where: { id } });
+        if (!existing || existing.userId !== req.user.id) {
+            return res.status(403).json({ error: 'Unauthorized' });
+        }
+
+        await prisma.flipAsset.delete({ where: { id } });
+        res.json({ message: 'Deleted successfully' });
+    } catch (error) {
+        console.error("Delete Flip Asset Error:", error);
+        res.status(500).json({ error: 'Failed to delete flip asset', details: error.message });
+    }
+});
+
+
+// ----------------------------------------------------
 // PAYMENT API (Mock webhooks)
 // ----------------------------------------------------
 app.post('/api/payment/success', authenticateToken, async (req, res) => {

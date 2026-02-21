@@ -41,13 +41,61 @@ model ProductLink {
 }
 
 model User {
-  id                 String    @id @default(uuid())
-  email              String    @unique
-  password           String?   // Optional for OAuth users
-  role               String    @default("subscriber") // "admin", "worker", "subscriber"
-  isSubscribed       Boolean   @default(false)
-  subscriptionExpiry DateTime? // Timestamp when subscription ends
-  provider           String    @default("email") // "email", "google", "facebook"
-  providerId         String?   // ID from the OAuth provider
-  createdAt          DateTime  @default(now())
+  id                 String      @id @default(uuid())
+  email              String      @unique
+  password           String?     // Optional for OAuth users
+  role               String      @default("subscriber") // "admin", "worker", "subscriber"
+  isSubscribed       Boolean     @default(false)
+  subscriptionExpiry DateTime?   // Timestamp when subscription ends
+  provider           String      @default("email") // "email", "google", "facebook"
+  providerId         String?     // ID from the OAuth provider
+  createdAt          DateTime    @default(now())
+  flipAssets         FlipAsset[] // One-to-many relationship for portfolio tracking
+}
+
+enum FlipStatus {
+  BOUGHT
+  REPAIRING
+  READY_TO_SELL
+  LISTED
+  NEGOTIATING
+  SOLD
+}
+
+model FlipAsset {
+  id                     String     @id @default(uuid())
+  userId                 String
+  user                   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Basic Info
+  brand                  String
+  model                  String
+  cpu                    String?
+  ram                    String?
+  storage                String?
+  gpu                    String?
+  condition              String     // e.g. "Good", "Needs repair", "Missing charger"
+  
+  // Purchase Info
+  purchasePrice          Int
+  purchaseDate           DateTime   @default(now())
+  sellerSource           String?    // e.g. "Ouedkniss", "Marketplace", "Local Shop"
+  repairCost             Int        @default(0)
+  upgradeCost            Int        @default(0)
+  
+  // Resale Plan
+  targetResalePrice      Int
+  minimumAcceptablePrice Int
+  platformListedOn       String?    // e.g. "Ouedkniss", "Facebook Groups"
+  listingDate            DateTime?
+  
+  // Sale Info
+  soldPrice              Int?
+  saleDate               DateTime?
+  extraCosts             Int        @default(0) // e.g. Delivery, commissions
+  
+  // Status Tracking
+  status                 FlipStatus @default(BOUGHT)
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
 }

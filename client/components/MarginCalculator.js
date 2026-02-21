@@ -14,31 +14,36 @@ export const MarginCalculator = forwardRef(({ avgPrice, maxPrice, dealThreshold,
     // Gamification Math
     const calculateDealScore = () => {
         if (costValue === 0) return null;
-        if (costValue >= avgPrice) return 0; // Terrible deal
+        if (costValue >= avgPrice) return (0).toFixed(1); // Terrible deal
 
         const percentageUnderAvg = ((avgPrice - costValue) / avgPrice) * 100;
 
-        // Base score off margin
-        let score = (percentageUnderAvg / 40) * 10;
+        // Dynamic Scoring Model
+        // 0% under avg = 5.0 (Fair market value)
+        // 15% under avg = ~6.5 (Decent)
+        // 25% under avg = 7.5 (Good)
+        // 40% under avg = 9.0 (Great)
+        // 60%+ under avg = 10.0 (Incredible/Steal)
 
-        // Cap at 10
-        if (score > 10) score = 10;
+        // Base score starts at 5.0 for anything under average
+        let score = 5.0 + (percentageUnderAvg / 12);
 
-        // Minimum score for anything under avg price is 5.0
-        if (score < 5 && costValue < avgPrice) {
-            score = 5 + (percentageUnderAvg / 10);
-        }
+        // Cap at 10.0
+        if (score > 10) score = 10.0;
 
-        return score.toFixed(1);
+        return parseFloat(score).toFixed(1);
     };
 
-    const dealScore = calculateDealScore();
-    const undervaluedPercentage = costValue > 0 ? Math.round(((avgPrice - costValue) / avgPrice) * 100) : 0;
+    const _score = calculateDealScore();
+    const dealScore = _score !== null ? parseFloat(_score) : null;
+    const undervaluedPercentage = costValue > 0 && costValue < avgPrice
+        ? Math.round(((avgPrice - costValue) / avgPrice) * 100)
+        : 0;
 
     // Status logic
     const isGoodDeal = costValue > 0 && costValue <= dealThreshold;
     const isRisky = costValue > dealThreshold && costValue < avgPrice;
-    const isBadDeal = costValue > 0 && costValue >= avgPrice;
+    const isBadDeal = costValue >= avgPrice;
 
     return (
         <div className="mt-8 space-y-4">
@@ -83,8 +88,8 @@ export const MarginCalculator = forwardRef(({ avgPrice, maxPrice, dealThreshold,
                     <div className="bg-carbon rounded-2xl p-6 flex flex-col justify-center space-y-6 shadow-lg">
                         <div className="flex justify-between items-center w-full">
                             <div className="flex pl-2 flex-col text-left">
-                                <span className="block text-slate-300 font-medium text-sm mb-1">Est. Profit (Avg Sale)</span>
-                                <span className="text-xs text-slate-400">Based on {avgPrice.toLocaleString()} DA</span>
+                                <span className="block text-slate-200 font-medium text-sm mb-1">Est. Profit (Avg Sale)</span>
+                                <span className="text-xs text-slate-300">Based on {avgPrice.toLocaleString()} DA</span>
                             </div>
                             <div className={`text-2xl pr-2 text-right font-extrabold ${costValue > 0 && avgProfit > 0 ? 'text-success' : 'text-white'}`}>
                                 {costValue > 0 ? `+${avgProfit.toLocaleString()} DA` : '-'}
@@ -95,8 +100,8 @@ export const MarginCalculator = forwardRef(({ avgPrice, maxPrice, dealThreshold,
 
                         <div className="flex justify-between items-center w-full">
                             <div className="flex pl-2 flex-col text-left">
-                                <span className="block text-slate-300 font-medium text-sm mb-1">Max Potential Profit</span>
-                                <span className="text-xs text-slate-400">Based on {maxPrice.toLocaleString()} DA</span>
+                                <span className="block text-slate-200 font-medium text-sm mb-1">Max Potential Profit</span>
+                                <span className="text-xs text-slate-300">Based on {maxPrice.toLocaleString()} DA</span>
                             </div>
                             <div className={`text-2xl pr-2 text-right font-extrabold ${costValue > 0 && maxProfit > 0 ? 'text-primary' : 'text-white'}`}>
                                 {costValue > 0 ? `+${maxProfit.toLocaleString()} DA` : '-'}
@@ -119,10 +124,10 @@ export const MarginCalculator = forwardRef(({ avgPrice, maxPrice, dealThreshold,
 
                             {/* Score Circle */}
                             <div className="flex flex-col items-center justify-center shrink-0">
-                                <div className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-2">Deal Score</div>
+                                <div className="text-sm font-bold text-slate-600 uppercase tracking-widest mb-2">Deal Score</div>
                                 <div className={`w-28 h-28 rounded-full border-4 flex items-center justify-center shadow-lg bg-white relative
-                                    ${parseFloat(dealScore) >= 8 ? 'border-success text-success' : parseFloat(dealScore) >= 5 ? 'border-warning text-warning' : 'border-error-text text-error-text'}`}>
-                                    <span className="text-4xl font-black">{dealScore}</span>
+                                    ${dealScore >= 8 ? 'border-success text-success' : dealScore >= 5 ? 'border-warning text-warning' : 'border-error-text text-error-text'}`}>
+                                    <span className="text-4xl font-black">{dealScore.toFixed(1)}</span>
                                     <span className="absolute bottom-2 text-xs font-bold opacity-50">/ 10</span>
                                 </div>
                             </div>
@@ -130,24 +135,24 @@ export const MarginCalculator = forwardRef(({ avgPrice, maxPrice, dealThreshold,
                             {/* Gamified Insights */}
                             <div className="flex-1 space-y-3 w-full">
                                 {undervaluedPercentage > 0 ? (
-                                    <div className="flex items-center gap-3 text-sm md:text-base font-bold text-carbon bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+                                    <div className="flex items-center gap-3 text-sm md:text-base font-bold text-slate-800 bg-white p-3 rounded-xl shadow-sm border border-gray-200">
                                         <Flame className="text-orange-500 shrink-0" size={24} />
                                         <span>🔥 Undervalued by <span className="text-success">{undervaluedPercentage}%</span> compared to market average.</span>
                                     </div>
                                 ) : (
-                                    <div className="flex items-center gap-3 text-sm md:text-base font-bold text-carbon bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+                                    <div className="flex items-center gap-3 text-sm md:text-base font-bold text-slate-800 bg-white p-3 rounded-xl shadow-sm border border-gray-200">
                                         <AlertTriangle className="text-error-text shrink-0" size={24} />
                                         <span>Overpriced by <span className="text-error-text">{Math.abs(undervaluedPercentage)}%</span>. Do not buy!</span>
                                     </div>
                                 )}
 
-                                <div className="flex items-center gap-3 text-sm md:text-base font-bold text-carbon bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+                                <div className="flex items-center gap-3 text-sm md:text-base font-bold text-slate-800 bg-white p-3 rounded-xl shadow-sm border border-gray-200">
                                     <Zap className="text-yellow-400 shrink-0" fill="currentColor" size={24} />
                                     <span>⚡ {confidenceScore >= 80 ? 'Extremely High' : confidenceScore >= 50 ? 'High' : 'Moderate'} demand model</span>
                                 </div>
 
-                                {parseFloat(dealScore) >= 7 && (
-                                    <div className="flex items-center gap-3 text-sm md:text-base font-bold text-carbon bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+                                {dealScore >= 7 && (
+                                    <div className="flex items-center gap-3 text-sm md:text-base font-bold text-slate-800 bg-white p-3 rounded-xl shadow-sm border border-gray-200">
                                         <TrendingUp className="text-primary shrink-0" size={24} />
                                         <span>📈 Fast resale history at this price point.</span>
                                     </div>
