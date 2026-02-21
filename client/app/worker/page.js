@@ -1,10 +1,21 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Save, AlertCircle, CheckCircle } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { useRouter } from 'next/navigation';
 
 export default function WorkerDashboard() {
+    const { user } = useAuth();
+    const router = useRouter();
+
+    useEffect(() => {
+        if (user === null) return; // Wait for auth to initialize
+        if (!user || (user.role !== 'worker' && user.role !== 'admin')) {
+            router.push('/');
+        }
+    }, [user, router]);
     const [formData, setFormData] = useState({
         category: 'Laptop',
         cpu: '',
@@ -13,11 +24,8 @@ export default function WorkerDashboard() {
         storage: '',
         metadata: '', // JSON string for UI (e.g. batteryHealth)
         condition: 'Used',
-        minPrice: '',
-        avgPrice: '',
-        maxPrice: '',
-        dealThreshold: '',
-        confidenceScore: 10,
+        listingUrl: '',
+        listedPrice: '',
         proofUrl: ''
     });
     const [status, setStatus] = useState({ type: '', text: '' });
@@ -47,24 +55,15 @@ export default function WorkerDashboard() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setStatus({ type: 'loading', text: 'Saving intelligence unit...' });
+        setStatus({ type: 'loading', text: 'Saving marketplace listing...' });
 
         try {
-            const dataToSubmit = {
-                ...formData,
-                minPrice: parseInt(formData.minPrice),
-                avgPrice: parseInt(formData.avgPrice),
-                maxPrice: parseInt(formData.maxPrice),
-                dealThreshold: parseInt(formData.dealThreshold),
-                confidenceScore: parseInt(formData.confidenceScore)
-            };
-
-            await axios.post('http://localhost:5000/api/intelligence-units', dataToSubmit);
-            setStatus({ type: 'success', text: 'Intelligence unit saved successfully!' });
-            // Reset numerical fields to keep typing new units fast
-            setFormData(prev => ({ ...prev, minPrice: '', avgPrice: '', maxPrice: '', dealThreshold: '', proofUrl: '', metadata: '' }));
+            await axios.post('http://localhost:5000/api/intelligence-units', formData);
+            setStatus({ type: 'success', text: 'Listing submitted for Admin review!' });
+            // Reset input fields to keep typing new units fast
+            setFormData(prev => ({ ...prev, listingUrl: '', listedPrice: '', proofUrl: '', metadata: '' }));
         } catch (error) {
-            setStatus({ type: 'error', text: error.response?.data?.error || 'Failed to save unit.' });
+            setStatus({ type: 'error', text: error.response?.data?.error || 'Failed to submit listing.' });
         }
     };
 
@@ -72,7 +71,7 @@ export default function WorkerDashboard() {
         <main className="min-h-screen bg-gray-50 p-8">
             <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
                 <h1 className="text-2xl font-bold text-carbon mb-2">Worker Data Entry</h1>
-                <p className="text-slate-500 mb-8">Enter analyzed market data points to power the Smart Search.</p>
+                <p className="text-slate-500 mb-8">Submit raw marketplace listings to build the database.</p>
 
                 {status.text && (
                     <div className={`p-4 rounded-lg mb-6 flex items-center gap-3 ${status.type === 'success' ? 'bg-success/10 text-success' : status.type === 'error' ? 'bg-error-bg text-error-text' : 'bg-blue-50 text-blue-600'}`}>
@@ -83,7 +82,7 @@ export default function WorkerDashboard() {
                 )}
 
                 <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
                             <select name="category" value={formData.category} onChange={handleChange} className="w-full bg-surface border border-gray-200 rounded-lg p-3 outline-none focus:border-primary">
@@ -100,10 +99,6 @@ export default function WorkerDashboard() {
                                 <option>Used</option>
                                 <option>New</option>
                             </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Proof URL (Imgur/Drive)</label>
-                            <input name="proofUrl" placeholder="Optional" value={formData.proofUrl || ''} onChange={handleChange} className="w-full bg-surface border border-gray-200 rounded-lg p-3 outline-none focus:border-primary" />
                         </div>
                     </div>
 
@@ -172,36 +167,27 @@ export default function WorkerDashboard() {
                     </div>
 
                     <div className="border-t border-gray-100 pt-6 mt-6">
-                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Pricing Intel (DA)</h3>
-                        <div className="grid grid-cols-3 gap-4 mb-4">
+                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Worker Listing Link</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div>
-                                <label className="block text-xs font-medium text-slate-500 mb-1">Min Price</label>
-                                <input required type="number" name="minPrice" value={formData.minPrice} onChange={handleChange} className="w-full bg-surface border border-gray-200 rounded-lg p-2 text-sm outline-none focus:border-primary" />
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Link (Ouedkniss/Marketplace)</label>
+                                <input name="listingUrl" required placeholder="https://..." value={formData.listingUrl} onChange={handleChange} className="w-full bg-surface border border-gray-200 rounded-lg p-3 text-sm outline-none focus:border-primary" />
                             </div>
                             <div>
-                                <label className="block text-xs font-medium text-slate-500 mb-1">Avg Price</label>
-                                <input required type="number" name="avgPrice" value={formData.avgPrice} onChange={handleChange} className="w-full bg-surface border border-gray-200 rounded-lg p-2 text-sm outline-none focus:border-primary" />
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Listed Price (DA)</label>
+                                <input required type="number" name="listedPrice" placeholder="e.g. 120000" value={formData.listedPrice} onChange={handleChange} className="w-full border border-primary/30 rounded-lg p-3 outline-none focus:border-primary" />
                             </div>
-                            <div>
-                                <label className="block text-xs font-medium text-slate-500 mb-1">Max Price</label>
-                                <input required type="number" name="maxPrice" value={formData.maxPrice} onChange={handleChange} className="w-full bg-surface border border-gray-200 rounded-lg p-2 text-sm outline-none focus:border-primary" />
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-bold text-success mb-1">Deal Threshold (Good Deal)</label>
-                                <input required type="number" name="dealThreshold" value={formData.dealThreshold} onChange={handleChange} className="w-full border border-success/30 rounded-lg p-3 outline-none focus:ring-2 focus:ring-success/20" />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-warning mb-1">Confidence (# of listings checked)</label>
-                                <input required type="number" name="confidenceScore" value={formData.confidenceScore} onChange={handleChange} className="w-full border border-warning/30 rounded-lg p-3 outline-none focus:ring-2 focus:ring-warning/20" />
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Screenshot Proof URL (Optional if Price is visible in Link)</label>
+                                <input name="proofUrl" placeholder="Imgur / Drive Link..." value={formData.proofUrl || ''} onChange={handleChange} className="w-full bg-surface border border-gray-200 rounded-lg p-3 outline-none focus:border-primary" />
+                                <p className="text-xs text-slate-400 mt-1">If the listing does not include a price (e.g. "Contact seller"), contact them and upload a screenshot of their response here.</p>
                             </div>
                         </div>
                     </div>
 
                     <button disabled={status.type === 'loading'} type="submit" className="w-full bg-primary hover:bg-primary-hover text-white font-bold py-4 rounded-xl shadow-btn transition-all disabled:opacity-50 flex justify-center items-center gap-2">
                         <Save size={20} />
-                        Save Intelligence Unit
+                        Submit Listing for Admin Review
                     </button>
                 </form>
             </div>

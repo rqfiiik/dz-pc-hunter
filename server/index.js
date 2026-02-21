@@ -255,21 +255,25 @@ app.get('/api/search', authenticateToken, async (req, res) => {
 // ----------------------------------------------------
 app.post('/api/intelligence-units', async (req, res) => {
     try {
-        const { category, cpu, gpu, ram, storage, metadata, condition, minPrice, avgPrice, maxPrice, dealThreshold, confidenceScore, proofUrl } = req.body;
+        const { category, cpu, gpu, ram, storage, metadata, condition, listingUrl, listedPrice, proofUrl } = req.body;
 
+        // Workers no longer calculate the averages. They submit raw listings.
+        // We initialize the pending IntelligenceUnit with 0s and attach the specific ProductLink.
         const unit = await prisma.intelligenceUnit.create({
             data: {
                 category, cpu, gpu, ram, storage, metadata, condition,
-                minPrice, avgPrice, maxPrice, dealThreshold, confidenceScore, proofUrl,
-                status: 'PENDING'
-            }
+                minPrice: 0, avgPrice: 0, maxPrice: 0, dealThreshold: 0, confidenceScore: 1, proofUrl,
+                status: 'PENDING',
+                productLinks: {
+                    create: listingUrl ? { url: listingUrl, price: parseInt(listedPrice) } : []
+                }
+            },
+            include: { productLinks: true }
         });
 
         res.status(201).json(unit);
     } catch (error) {
-        if (error.code === 'P2002') {
-            return res.status(409).json({ error: 'An Intelligence Unit with these exact specs already exists.' });
-        }
+        console.error("Worker Submit Error:", error);
         res.status(500).json({ error: 'Failed to create unit', details: error.message });
     }
 });
@@ -278,7 +282,8 @@ app.get('/api/admin/pending', async (req, res) => {
     try {
         const pendingUnits = await prisma.intelligenceUnit.findMany({
             where: { status: 'PENDING' },
-            orderBy: { createdAt: 'desc' }
+            orderBy: { createdAt: 'desc' },
+            include: { productLinks: true }
         });
         res.json(pendingUnits);
     } catch (error) {
@@ -289,18 +294,60 @@ app.get('/api/admin/pending', async (req, res) => {
 app.put('/api/admin/approve/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { cpu, gpu, ram, storage, metadata } = req.body; // Allow admin to normalize specs
+        const { cpu, gpu, ram, storage, metadata, minPrice, avgPrice, maxPrice, dealThreshold, confidenceScore } = req.body;
 
+        // 1. Fetch the pending unit to get category, condition, etc.
+        const pendingUnit = await prisma.intelligenceUnit.findUnique({ where: { id } });
+        if (!pendingUnit) return res.status(404).json({ error: 'Unit not found' });
+
+        const finalCpu = cpu !== undefined ? cpu : pendingUnit.cpu;
+        const finalGpu = gpu !== undefined ? gpu : pendingUnit.gpu;
+        const finalRam = ram !== undefined ? ram : pendingUnit.ram;
+        const finalStorage = storage !== undefined ? storage : pendingUnit.storage;
+
+        // 2. Check if an approved unit with these exact specs already exists
+        const whereClause = {
+            status: 'APPROVED',
+            category: pendingUnit.category,
+            condition: pendingUnit.condition,
+            cpu: finalCpu || null,
+            gpu: finalGpu || null,
+            ram: finalRam || null,
+            storage: finalStorage || null
+        };
+        console.log("Looking for existing with:", whereClause);
+        const existingApproved = await prisma.intelligenceUnit.findFirst({
+            where: whereClause
+        });
+        console.log("Found existing:", existingApproved ? existingApproved.id : "NONE");
+
+        // 3. If an older approved unit exists (like a seeded dataset price), delete it so the new worker curated prices take over
+        if (existingApproved) {
+            console.log("Deleting old unit:", existingApproved.id);
+            await prisma.intelligenceUnit.delete({ where: { id: existingApproved.id } });
+        }
+
+        // 4. Mark the pending unit as approved, save normalized specs, and apply the Admin's final pricing calculations
         const updated = await prisma.intelligenceUnit.update({
             where: { id },
             data: {
                 status: 'APPROVED',
-                cpu, gpu, ram, storage, metadata
+                cpu: finalCpu,
+                gpu: finalGpu,
+                ram: finalRam,
+                storage: finalStorage,
+                metadata,
+                minPrice: parseInt(minPrice),
+                avgPrice: parseInt(avgPrice),
+                maxPrice: parseInt(maxPrice),
+                dealThreshold: parseInt(dealThreshold),
+                confidenceScore: parseInt(confidenceScore)
             }
         });
 
         res.json(updated);
     } catch (error) {
+        console.error("Approve Error:", error);
         res.status(500).json({ error: 'Failed to approve unit', details: error.message });
     }
 });
@@ -339,6 +386,35 @@ app.put('/api/admin/update-prices/:id', async (req, res) => {
         res.json(updated);
     } catch (error) {
         res.status(500).json({ error: 'Failed to update prices', details: error.message });
+    }
+});
+
+app.get('/api/analytics', authenticateToken, async (req, res) => {
+    try {
+        const units = await prisma.intelligenceUnit.findMany({
+            where: { status: 'APPROVED' }
+        });
+
+        const categories = {};
+        units.forEach(unit => {
+            if (!categories[unit.category]) {
+                categories[unit.category] = { name: unit.category, units: 0, totalMargin: 0 };
+            }
+            categories[unit.category].units++;
+            const margin = (unit.avgPrice || 0) - (unit.dealThreshold || 0);
+            categories[unit.category].totalMargin += margin > 0 ? margin : 0;
+        });
+
+        const analyticsData = Object.values(categories).map(cat => ({
+            name: cat.name,
+            units: cat.units,
+            avgMargin: Math.round(cat.totalMargin / cat.units)
+        }));
+
+        res.json(analyticsData);
+    } catch (error) {
+        console.error("Analytics Error:", error);
+        res.status(500).json({ error: 'Failed to fetch analytics', details: error.message });
     }
 });
 
