@@ -175,7 +175,7 @@ app.post('/api/auth/login', async (req, res) => {
 // ----------------------------------------------------
 app.get('/api/autocomplete', authenticateToken, async (req, res) => {
     try {
-        if (!req.user.isSubscribed && req.user.role !== 'admin') return res.json([]);
+        if (!req.user.isSubscribed && req.user.role !== 'admin' && req.user.role !== 'worker') return res.json([]);
 
         const { q } = req.query;
         if (!q || q.length < 2) return res.json([]);
@@ -348,10 +348,10 @@ app.put('/api/admin/approve/:id', async (req, res) => {
                 ram: finalRam,
                 storage: finalStorage,
                 metadata,
-                minPrice: parseInt(minPrice),
-                avgPrice: parseInt(avgPrice),
-                maxPrice: parseInt(maxPrice),
-                dealThreshold: parseInt(dealThreshold),
+                minPrice: Math.floor(parseInt(minPrice) / 10) * 10,
+                avgPrice: Math.floor(parseInt(avgPrice) / 10) * 10,
+                maxPrice: Math.floor(parseInt(maxPrice) / 10) * 10,
+                dealThreshold: Math.floor(parseInt(dealThreshold) / 10) * 10,
                 confidenceScore: parseInt(confidenceScore)
             }
         });
@@ -389,7 +389,10 @@ app.put('/api/admin/update-prices/:id', async (req, res) => {
         const updated = await prisma.intelligenceUnit.update({
             where: { id },
             data: {
-                minPrice, avgPrice, maxPrice, dealThreshold,
+                minPrice: Math.floor(parseInt(minPrice) / 10) * 10,
+                avgPrice: Math.floor(parseInt(avgPrice) / 10) * 10,
+                maxPrice: Math.floor(parseInt(maxPrice) / 10) * 10,
+                dealThreshold: Math.floor(parseInt(dealThreshold) / 10) * 10,
                 lastUpdated: new Date()
             }
         });

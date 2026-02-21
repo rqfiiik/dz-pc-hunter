@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertCircle, Search, LineChart, CheckCircle, ShieldAlert } from 'lucide-react';
@@ -19,6 +19,20 @@ export default function Home() {
 
     const { user } = useAuth();
     const router = useRouter();
+    const calculatorRef = useRef(null);
+
+    // Auto-focus the calculator input to gamify the experience after search
+    useEffect(() => {
+        if (searchResults?.results?.[0]) {
+            setTimeout(() => {
+                if (calculatorRef.current) {
+                    calculatorRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    // Additional timeout to let the smooth scroll finish before focusing
+                    setTimeout(() => calculatorRef.current.focus(), 600);
+                }
+            }, 800);
+        }
+    }, [searchResults]);
 
     const handleSearch = async (query) => {
         if (!user) {
@@ -36,7 +50,10 @@ export default function Home() {
         setParsedQuery(null);
 
         try {
-            const response = await axios.get(`http://localhost:5000/api/search?q=${encodeURIComponent(query)}`);
+            const token = localStorage.getItem('token');
+            const response = await axios.get(`http://localhost:5000/api/search?q=${encodeURIComponent(query)}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
             setParsedQuery(response.data.parsedQuery);
             setSearchResults(response.data); // Store the entire response data
         } catch (err) {
@@ -162,9 +179,11 @@ export default function Home() {
                                     />
 
                                     <MarginCalculator
+                                        ref={calculatorRef}
                                         avgPrice={unit.avgPrice}
                                         maxPrice={unit.maxPrice}
                                         dealThreshold={unit.dealThreshold}
+                                        confidenceScore={unit.confidenceScore}
                                     />
 
                                     <h3 className="text-xl font-bold text-carbon mb-6 mt-8">Recent Verified Deals</h3>

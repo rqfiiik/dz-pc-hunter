@@ -28,10 +28,10 @@ async function seedDatabase() {
                         cpu: cpu.name,
                         gpu: cpu.graphics === 'None' ? null : cpu.graphics,
                         condition: 'New',
-                        minPrice: estimatedDZD - 10000,
-                        avgPrice: estimatedDZD,
-                        maxPrice: estimatedDZD + 15000,
-                        dealThreshold: estimatedDZD - 20000,
+                        minPrice: Math.floor((estimatedDZD - 10000) / 10) * 10,
+                        avgPrice: Math.floor((estimatedDZD) / 10) * 10,
+                        maxPrice: Math.floor((estimatedDZD + 15000) / 10) * 10,
+                        dealThreshold: Math.floor((estimatedDZD - 20000) / 10) * 10,
                         confidenceScore: 70,
                         status: 'APPROVED'
                     }
@@ -56,10 +56,10 @@ async function seedDatabase() {
                         gpu: gpu.chipset || gpu.name,
                         ram: gpu.memory ? `${gpu.memory}GB` : null,
                         condition: 'New',
-                        minPrice: estimatedDZD - 15000,
-                        avgPrice: estimatedDZD,
-                        maxPrice: estimatedDZD + 25000,
-                        dealThreshold: estimatedDZD - 30000,
+                        minPrice: Math.floor((estimatedDZD - 15000) / 10) * 10,
+                        avgPrice: Math.floor((estimatedDZD) / 10) * 10,
+                        maxPrice: Math.floor((estimatedDZD + 25000) / 10) * 10,
+                        dealThreshold: Math.floor((estimatedDZD - 30000) / 10) * 10,
                         confidenceScore: 70,
                         status: 'APPROVED'
                     }
@@ -89,7 +89,13 @@ async function seedDatabase() {
                     return index !== -1 ? row[index] : null;
                 };
 
-                const title = getCol('Naming') || getCol('Design > Model name');
+                const brand = getCol('Design > Brand') || '';
+                const family = getCol('Design > Family') || '';
+                const baseTitle = getCol('Naming') || getCol('Design > Model name') || '';
+
+                // Construct a much richer title like "DELL Inspiron 5000"
+                const title = `${brand} ${family} ${baseTitle}`.trim().replace(/\s+/g, ' ');
+
                 const cpuRaw = getCol('Main specs > Processor') || getCol('Processor > Processor model');
                 const gpuRaw = getCol('Main specs > Graphics') || getCol('Graphics > Discrete graphics adapter model') || getCol('Graphics > On-board graphics adapter model');
                 const ramRaw = getCol('Main specs > Internal memory');
@@ -101,7 +107,8 @@ async function seedDatabase() {
                     continue;
                 }
 
-                const cpu = String(cpuRaw).trim();
+                // Append brand to CPU just in case users search CPU for brand
+                const cpu = `${brand} ${String(cpuRaw).trim()}`.trim();
                 const gpu = gpuRaw ? String(gpuRaw).replace('Not available', '').trim() : '';
                 const ram = String(ramRaw).replace('Not available', '').trim();
                 const storage = storageRaw ? String(storageRaw).replace('Not available', '').trim() : '';

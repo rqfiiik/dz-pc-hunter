@@ -35,7 +35,7 @@ export function HeroSearch({ onSearch, isLoading }) {
                 if (!token) return; // Silent return if not logged in
 
                 const response = await axios.get(`http://localhost:5000/api/autocomplete?q=${encodeURIComponent(query)}`, {
-                    headers: { 'x-auth-token': token }
+                    headers: { Authorization: `Bearer ${token}` }
                 });
                 setSuggestions(response.data);
             } catch (error) {
