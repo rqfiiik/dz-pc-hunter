@@ -3,42 +3,56 @@
 import { useState } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, Search } from 'lucide-react';
+import { AlertCircle, Search, LineChart, CheckCircle, ShieldAlert } from 'lucide-react';
 import { HeroSearch } from '../components/HeroSearch';
 import { StatsTicker } from '../components/StatsTicker';
 import { DealCard } from '../components/DealCard';
+import { MarginCalculator } from '../components/MarginCalculator';
+import { useAuth } from './context/AuthContext';
+import { useRouter } from 'next/navigation';
 
 export default function Home() {
+    const [searchResults, setSearchResults] = useState(null);
+    const [parsedQuery, setParsedQuery] = useState(null);
     const [loading, setLoading] = useState(false);
-    const [data, setData] = useState(null);
-    const [error, setError] = useState(null);
+    const [error, setError] = useState(''); // Changed initial state to empty string
+
+    const { user } = useAuth();
+    const router = useRouter();
 
     const handleSearch = async (query) => {
+        if (!user) {
+            router.push('/login');
+            return;
+        }
+        if (!user.isSubscribed && user.role !== 'admin') {
+            router.push('/pricing');
+            return;
+        }
+
         setLoading(true);
-        setError(null);
-        setData(null);
+        setError(''); // Reset error to empty string
+        setSearchResults(null);
+        setParsedQuery(null);
 
         try {
             const response = await axios.get(`http://localhost:5000/api/search?q=${encodeURIComponent(query)}`);
-            setData({
-                query,
-                parsed: response.data.parsedQuery,
-                results: response.data.results
-            });
+            setParsedQuery(response.data.parsedQuery);
+            setSearchResults(response.data); // Store the entire response data
         } catch (err) {
             console.error(err);
-            setError('Failed to fetch market intelligence. Ensure the backend server is running.');
+            setError(err.response?.data?.error || 'Failed to fetch results'); // Updated error handling
         } finally {
             setLoading(false);
         }
     };
 
-    const unit = data?.results?.[0]; // Show the best match for now
+    const unit = searchResults?.results?.[0]; // Show the best match for now
 
     return (
         <main className="min-h-screen bg-gray-50 flex flex-col">
             {/* Hero Section */}
-            <section className={`transition-all duration-700 ease-in-out flex flex-col items-center justify-center p-6 ${data ? 'py-12 min-h-[40vh]' : 'min-h-[80vh]'}`}>
+            <section className={`transition-all duration-700 ease-in-out flex flex-col items-center justify-center p-6 ${searchResults ? 'py-12 min-h-[40vh]' : 'min-h-[80vh]'}`}>
                 <motion.div
                     layout
                     initial={{ opacity: 0, y: 20 }}
@@ -58,7 +72,7 @@ export default function Home() {
 
                 {/* Parsing Feedback Overlay */}
                 <AnimatePresence>
-                    {(loading || data) && (
+                    {(loading || searchResults) && (
                         <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
@@ -68,10 +82,10 @@ export default function Home() {
                             {loading ? (
                                 <p className="text-primary font-medium flex items-center gap-2 animate-pulse">Running smart search...</p>
                             ) : (
-                                data?.parsed && (
+                                searchResults?.parsedQuery && (
                                     <>
                                         <span className="text-slate-400">Parsed:</span>
-                                        {Object.entries(data.parsed).map(([key, value]) => value && (
+                                        {Object.entries(searchResults.parsedQuery).map(([key, value]) => value && (
                                             <span key={key} className="bg-white border rounded-full px-3 py-1 text-slate-600 shadow-sm font-medium text-xs uppercase tracking-wider">
                                                 {key}: <span className="text-primary">{value}</span>
                                             </span>
@@ -101,7 +115,7 @@ export default function Home() {
 
             {/* Results Section */}
             <AnimatePresence>
-                {data && (
+                {searchResults && (
                     <motion.section
                         initial={{ opacity: 0, y: 40 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -125,7 +139,13 @@ export default function Home() {
                                         <div>
                                             <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1">Market Scope: {unit.category}</p>
                                             <h2 className="text-3xl font-bold text-carbon">
-                                                {unit.cpu} • {unit.gpu} • {unit.ram} • {unit.storage} {unit.condition === 'New' ? '(New)' : '(Used)'}
+                                                {unit.category === 'Phone' ? (
+                                                    <>{unit.cpu} • {unit.storage} {unit.metadata && JSON.parse(unit.metadata).batteryHealth ? `• ${JSON.parse(unit.metadata).batteryHealth}% Battery` : ''}</>
+                                                ) : unit.category === 'Scooter' ? (
+                                                    <>{unit.cpu} {unit.metadata && JSON.parse(unit.metadata).mileage ? `• ${JSON.parse(unit.metadata).mileage} km` : ''}</>
+                                                ) : (
+                                                    <>{unit.cpu} {unit.gpu && `• ${unit.gpu}`} • {unit.ram} • {unit.storage}</>
+                                                )} {unit.condition === 'New' ? '(New)' : '(Used)'}
                                             </h2>
                                         </div>
                                         <div className="text-right">
@@ -139,6 +159,12 @@ export default function Home() {
                                         min={unit.minPrice}
                                         max={unit.maxPrice}
                                         count={unit.confidenceScore}
+                                    />
+
+                                    <MarginCalculator
+                                        avgPrice={unit.avgPrice}
+                                        maxPrice={unit.maxPrice}
+                                        dealThreshold={unit.dealThreshold}
                                     />
 
                                     <h3 className="text-xl font-bold text-carbon mb-6 mt-8">Recent Verified Deals</h3>

@@ -11,17 +11,38 @@ export default function WorkerDashboard() {
         gpu: '',
         ram: '',
         storage: '',
+        metadata: '', // JSON string for UI (e.g. batteryHealth)
         condition: 'Used',
         minPrice: '',
         avgPrice: '',
         maxPrice: '',
         dealThreshold: '',
-        confidenceScore: 10
+        confidenceScore: 10,
+        proofUrl: ''
     });
     const [status, setStatus] = useState({ type: '', text: '' });
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
+
+    const handleMetadataChange = (key, value) => {
+        let metaObj = {};
+        try {
+            metaObj = formData.metadata ? JSON.parse(formData.metadata) : {};
+        } catch (e) {
+            metaObj = {};
+        }
+        metaObj[key] = value;
+        setFormData({ ...formData, metadata: JSON.stringify(metaObj) });
+    };
+
+    const getMetadataValue = (key) => {
+        try {
+            return formData.metadata ? JSON.parse(formData.metadata)[key] || '' : '';
+        } catch (e) {
+            return '';
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -41,7 +62,7 @@ export default function WorkerDashboard() {
             await axios.post('http://localhost:5000/api/intelligence-units', dataToSubmit);
             setStatus({ type: 'success', text: 'Intelligence unit saved successfully!' });
             // Reset numerical fields to keep typing new units fast
-            setFormData(prev => ({ ...prev, minPrice: '', avgPrice: '', maxPrice: '', dealThreshold: '', proofUrl: '' }));
+            setFormData(prev => ({ ...prev, minPrice: '', avgPrice: '', maxPrice: '', dealThreshold: '', proofUrl: '', metadata: '' }));
         } catch (error) {
             setStatus({ type: 'error', text: error.response?.data?.error || 'Failed to save unit.' });
         }
@@ -69,7 +90,8 @@ export default function WorkerDashboard() {
                                 <option>Laptop</option>
                                 <option>Desktop</option>
                                 <option>Phone</option>
-                                <option>Accessory</option>
+                                <option>Scooter</option>
+                                <option>PC Part</option>
                             </select>
                         </div>
                         <div>
@@ -86,22 +108,67 @@ export default function WorkerDashboard() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">CPU</label>
-                            <input required name="cpu" placeholder="e.g. i5-1145G7" value={formData.cpu} onChange={handleChange} className="w-full bg-surface border border-gray-200 rounded-lg p-3 outline-none focus:border-primary" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">GPU</label>
-                            <input name="gpu" placeholder="e.g. Iris Xe" value={formData.gpu} onChange={handleChange} className="w-full bg-surface border border-gray-200 rounded-lg p-3 outline-none focus:border-primary" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">RAM</label>
-                            <input required name="ram" placeholder="e.g. 16GB" value={formData.ram} onChange={handleChange} className="w-full bg-surface border border-gray-200 rounded-lg p-3 outline-none focus:border-primary" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Storage</label>
-                            <input name="storage" placeholder="e.g. 512GB" value={formData.storage} onChange={handleChange} className="w-full bg-surface border border-gray-200 rounded-lg p-3 outline-none focus:border-primary" />
-                        </div>
+                        {(formData.category === 'Laptop' || formData.category === 'Desktop' || formData.category === 'PC Part' || formData.category === 'Phone') && (
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">{formData.category === 'Phone' ? 'Model (e.g. iPhone 13 Pro)' : 'CPU / Main Model Component'}</label>
+                                <input required name="cpu" placeholder="e.g. i5-1145G7" value={formData.cpu} onChange={handleChange} className="w-full bg-surface border border-gray-200 rounded-lg p-3 outline-none focus:border-primary" />
+                            </div>
+                        )}
+
+                        {(formData.category === 'Laptop' || formData.category === 'Desktop') && (
+                            <>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">GPU</label>
+                                    <input name="gpu" placeholder="e.g. Iris Xe" value={formData.gpu} onChange={handleChange} className="w-full bg-surface border border-gray-200 rounded-lg p-3 outline-none focus:border-primary" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">RAM</label>
+                                    <input required name="ram" placeholder="e.g. 16GB" value={formData.ram} onChange={handleChange} className="w-full bg-surface border border-gray-200 rounded-lg p-3 outline-none focus:border-primary" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Storage</label>
+                                    <input name="storage" placeholder="e.g. 512GB" value={formData.storage} onChange={handleChange} className="w-full bg-surface border border-gray-200 rounded-lg p-3 outline-none focus:border-primary" />
+                                </div>
+                            </>
+                        )}
+
+                        {formData.category === 'Phone' && (
+                            <>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Storage</label>
+                                    <input required name="storage" placeholder="e.g. 128GB" value={formData.storage} onChange={handleChange} className="w-full bg-surface border border-gray-200 rounded-lg p-3 outline-none focus:border-primary" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Battery Health (%)</label>
+                                    <input
+                                        type="number"
+                                        placeholder="e.g. 85"
+                                        value={getMetadataValue('batteryHealth')}
+                                        onChange={(e) => handleMetadataChange('batteryHealth', e.target.value)}
+                                        className="w-full bg-surface border border-gray-200 rounded-lg p-3 outline-none focus:border-primary"
+                                    />
+                                </div>
+                            </>
+                        )}
+
+                        {formData.category === 'Scooter' && (
+                            <>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Model</label>
+                                    <input required name="cpu" placeholder="e.g. Xiaomi Pro 2" value={formData.cpu} onChange={handleChange} className="w-full bg-surface border border-gray-200 rounded-lg p-3 outline-none focus:border-primary" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Mileage (km)</label>
+                                    <input
+                                        type="number"
+                                        placeholder="e.g. 1500"
+                                        value={getMetadataValue('mileage')}
+                                        onChange={(e) => handleMetadataChange('mileage', e.target.value)}
+                                        className="w-full bg-surface border border-gray-200 rounded-lg p-3 outline-none focus:border-primary"
+                                    />
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     <div className="border-t border-gray-100 pt-6 mt-6">

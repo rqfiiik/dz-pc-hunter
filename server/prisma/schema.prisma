@@ -14,6 +14,7 @@ model IntelligenceUnit {
   gpu             String?
   ram             String?
   storage         String?
+  metadata        String?        // JSON string to hold non-PC specs (e.g. { "batteryHealth": "90%", "mileage": "1200km" })
   condition       String         // New, Used
   minPrice        Int
   avgPrice        Int
@@ -25,7 +26,8 @@ model IntelligenceUnit {
   lastUpdated     DateTime       @default(now())
   productLinks    ProductLink[]
 
-  @@unique([category, cpu, gpu, ram, storage, condition])
+  // Removed unique constraint as optional fields + metadata make uniqueness too complex for MVP.
+  // We will rely on Admin deduplication.
 }
 
 model ProductLink {
@@ -40,9 +42,11 @@ model ProductLink {
 model User {
   id                 String    @id @default(uuid())
   email              String    @unique
-  password           String
+  password           String?   // Optional for OAuth users
   role               String    @default("subscriber") // "admin", "worker", "subscriber"
   isSubscribed       Boolean   @default(false)
   subscriptionExpiry DateTime? // Timestamp when subscription ends
+  provider           String    @default("email") // "email", "google", "facebook"
+  providerId         String?   // ID from the OAuth provider
   createdAt          DateTime  @default(now())
 }
